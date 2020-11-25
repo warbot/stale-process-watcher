@@ -19,7 +19,7 @@ class Watcher
 
         user_factors.each do |user_factor|
           name, weight = user_factor.split(':')
-          factor = FACTORS_MAP[name]
+          factor = Watcher::FACTORS_MAP[name]
 
           if weight
             factor.weight = weight.to_i
