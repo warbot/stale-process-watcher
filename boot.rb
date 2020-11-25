@@ -140,7 +140,7 @@ class Watcher
 end
 
 # FACTORS=ProcIO:50,Strace:99 MODE=kill SLEEPTIME=30 BOOT=1 STOP_ON_ERROR=0\
-#   GREP=provision_worker.rb bundle exec ruby workers/watcher.rb
+#   GREP=provision_worker.rb bundle exec ruby boot.rb
 if ENV['BOOT'] == '1'
   Watcher.boot
 end
