@@ -39,7 +39,7 @@ class Watcher
   def initialize
     @process_pool = ProcessPool.new
     @process_pool.cap = PROCESS_CAP
-    @farm = Farm.new
+    @farm = Farm.new(@process_pool)
   end
 
   attr_accessor :mode, :pattern, :sleep_time, :sleep_diviation
@@ -57,6 +57,7 @@ class Watcher
   def act_mode(process, score)
     pid = process.pid
     uuid = process.uuid
+    stat = @process_pool[pid]
 
     case score
     when 0..49
