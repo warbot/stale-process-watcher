@@ -57,7 +57,7 @@ class Watcher
   def act_mode(process, score)
     pid = process.pid
     uuid = process.uuid
-    stat = @process_pool[pid]
+    stat = process_pool[pid]
 
     case score
     when 0..49
