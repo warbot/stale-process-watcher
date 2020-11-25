@@ -4,6 +4,7 @@ class Watcher
   require "workers/watcher/process_pool"
   require "workers/watcher/stat"
   require "workers/watcher/ps"
+  require "workers/watcher/farm"
   require "workers/watcher/user_opts"
 
   require "workers/watcher/stale_job/factor"
@@ -27,11 +28,8 @@ class Watcher
     DO_NOTHING = 'do nothing'
   ]
 
-  FACTOR_MIN_SIZE = Watcher::Stat::RETENTION_SIZE
-
   PROCESS_CAP = 200
-
-  FACTORS_MAP  = {}
+  FACTORS_MAP = {}
 
   FACTORS.each do |factor|
     name = factor.name.split('::').last
@@ -41,11 +39,12 @@ class Watcher
   def initialize
     @process_pool = ProcessPool.new
     @process_pool.cap = PROCESS_CAP
+    @farm = Farm.new
   end
 
   attr_accessor :mode, :pattern, :sleep_time, :sleep_diviation
   attr_writer :factors, :process_cap
-  attr_reader :process_count, :process_pool
+  attr_reader :process_count, :process_pool, :farm
 
   def factors
     @factors || FACTORS
@@ -55,34 +54,11 @@ class Watcher
     @process_pool.cap = size
   end
 
-  def harvest(process)
-    stat = @process_pool[process.pid] || Stat.new(process, :factors => factors)
-    @process_pool[process.pid] = stat
-
-    factors.each do |f|
-      stat[f] = f.new.exec(process)
-    end
-
-    stat
-  end
-
-  def bake(process)
-    stat = @process_pool[process.pid]
-    r = {}
-    total_weight = 0
+  def act_mode(process, score)
     pid = process.pid
     uuid = process.uuid
 
-    stat.each do |f, results|
-      if results.size >= FACTOR_MIN_SIZE && results.uniq.size == 1
-        r[f] = f.weight
-        total_weight += r[f]
-      elsif results.size < FACTOR_MIN_SIZE
-        Log.debug "Not enough data to evaluate. Size: #{results.size}. Need: #{FACTOR_MIN_SIZE}"
-      end
-    end
-
-    case total_weight
+    case score
     when 0..49
       Log.info "Process pid: #{pid}, uuid: #{uuid} is healthy."\
         " Score: #{total_weight}."\
@@ -97,13 +73,7 @@ class Watcher
         "\nScore per factor: #{r.inspect}."\
         "\nScore: #{total_weight}."\
         "\nEvidences: #{stat}"
-      act_mode(process)
     end
-  end
-
-  def act_mode(process)
-    pid = process.pid
-    uuid = process.uuid
 
     Log.info "Mode set: #{mode}"
 
@@ -123,8 +93,9 @@ class Watcher
       "\nPIDs: #{processes.map(&:pid).join(', ')}"
 
     processes.each do |process|
-      harvest(process)
-      bake(process)
+      farm.harvest(process, factors)
+      score = farm.bake(process)
+      act(process, score)
     end
   end
 
